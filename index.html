@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Простой блокчейн</title>
+    <style>
+        body {font-family: Arial, sans-serif; margin: 20px; background:#f7f7f7;}
+        h1, h2 {color:#333;}
+        .card {background:#fff; padding:15px; margin-bottom:20px; border-radius:8px; box-shadow:0 2px 5px rgba(0,0,0,.1);}
+        input, button {padding:8px; margin:5px 0; font-size:1rem;}
+        button {cursor:pointer; background:#007bff; color:#fff; border:none; border-radius:4px;}
+        button:hover {background:#0056b3;}
+        pre {background:#eee; padding:10px; border-radius:4px; overflow:auto;}
+        .error {color:#d9534f;}
+    </style>
+</head>
+<body>
+    <h1>Простой блокчейн</h1>
+
+    <!-- ==== Регистрация узлов ==== -->
+    <div class="card">
+        <h2>1. Добавить узел (для сети)</h2>
+        <input id="nodeUrl" placeholder="http://localhost:5001" style="width:300px;">
+        <button onclick="registerNode()">Добавить</button>
+        <pre id="nodesResult"></pre>
+    </div>
+
+    <!-- ==== Создать транзакцию ==== -->
+    <div class="card">
+        <h2>2. Новая транзакция</h2>
+        <input id="txFrom" placeholder="Отправитель (sender)">
+        <input id="txTo"   placeholder="Получатель (recipient)">
+        <input id="txAmt"  placeholder="Сумма" type="number" step="0.01">
+        <button onclick="newTransaction()">Отправить</button>
+        <pre id="txResult"></pre>
+    </div>
+
+    <!-- ==== Майнинг ==== -->
+    <div class="card">
+        <h2>3. Майнинг блока</h2>
+        <input id="minerAddr" placeholder="Адрес майнера">
+        <button onclick="mine()">Майнить</button>
+        <pre id="mineResult"></pre>
+    </div>
+
+    <!-- ==== Баланс ==== -->
+    <div class="card">
+        <h2>4. Баланс адреса</h2>
+        <input id="balAddr" placeholder="Адрес">
+        <button onclick="getBalance()">Проверить</button>
+        <pre id="balResult"></pre>
+    </div>
+
+    <!-- ==== Цепочка и мемпул ==== -->
+    <div class="card">
+        <h2>5. Цепочка и мемпул</h2>
+        <button onclick="loadChain()">Обновить цепочку</button>
+        <button onclick="loadMempool()">Обновить мемпул</button>
+        <pre id="chainResult"></pre>
+    </div>
+
+<script>
+    const API = 'http://localhost:5000';   // <-- поменяй порт, если нужно
+
+    async function api(url, method = 'GET', body = null) {
+        const opts = {method, headers:{'Content-Type':'application/json'}};
+        if (body) opts.body = JSON.stringify(body);
+        const res = await fetch(API + url, opts);
+        const txt = await res.text();
+        try { return {ok: res.ok, data: JSON.parse(txt)}; }
+        catch { return {ok: res.ok, data: txt}; }
+    }
+
+    // ---------- 1. Регистрация узла ----------
+    async function registerNode() {
+        const url = document.getElementById('nodeUrl').value.trim();
+        if (!url) return alert('Введите URL узла');
+        const {ok, data} = await api('/register_node', 'POST', {node: url});
+        document.getElementById('nodesResult').textContent = ok ?
+            `Узел добавлен. Всего: ${data.total_nodes?.length || data.nodes?.length}` :
+            `Ошибка: ${JSON.stringify(data)}`;
+    }
+
+    // ---------- 2. Транзакция ----------
+    async function newTransaction() {
+        const from = document.getElementById('txFrom').value.trim();
+        const to   = document.getElementById('txTo').value.trim();
+        const amt  = parseFloat(document.getElementById('txAmt').value);
+        if (!from || !to || isNaN(amt)) return alert('Заполните все поля');
+        const {ok, data} = await api('/transactions/new', 'POST', {
+            sender: from, recipient: to, amount: amt
+        });
+        document.getElementById('txResult').textContent = ok ?
+            'Транзакция добавлена в мемпул' : `Ошибка: ${JSON.stringify(data)}`;
+    }
+
+    // ---------- 3. Майнинг ----------
+    async function mine() {
+        const miner = document.getElementById('minerAddr').value.trim();
+        if (!miner) return alert('Укажите адрес майнера');
+        const {ok, data} = await api('/mine', 'POST', {miner});
+        document.getElementById('mineResult').textContent = ok ?
+            `Блок #${data.index} замайнен!\nHash: ${data.hash}` :
+            `Ошибка: ${JSON.stringify(data)}`;
+    }
+
+    // ---------- 4. Баланс ----------
+    async function getBalance() {
+        const addr = document.getElementById('balAddr').value.trim();
+        if (!addr) return alert('Введите адрес');
+        const {ok, data} = await api(`/balance/${addr}`);
+        document.getElementById('balResult').textContent = ok ?
+            `Баланс ${addr}: ${data.balance}` : `Ошибка: ${JSON.stringify(data)}`;
+    }
+
+    // ---------- 5. Цепочка ----------
+    async function loadChain() {
+        const {ok, data} = await api('/chain');
+        document.getElementById('chainResult').textContent = ok ?
+            JSON.stringify(data, null, 2) : `Ошибка: ${data}`;
+    }
+
+    async function loadMempool() {
+        const {ok, data} = await api('/transactions');
+        document.getElementById('chainResult').textContent = ok ?
+            `Мемпул (${data.length} tx):\n` + JSON.stringify(data, null, 2) :
+            `Ошибка: ${data}`;
+    }
+
+    // Авто‑обновление цепочки каждые 10 сек
+    setInterval(loadChain, 10000);
+    loadChain();   // первый раз сразу
+</script>
+</body>
+</html>

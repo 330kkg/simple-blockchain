@@ -162,7 +162,7 @@ class Blockchain:
 
 # ====================== FLASK API ======================
 app = Flask(__name__)
-CORS(app, resources={r"/*": {"origins": "http://localhost:5173"}})  # Для веб-интерфейса
+CORS(app)  # Для веб-интерфейса
 blockchain = Blockchain()
 
 @app.route("/chain", methods=["GET"])
